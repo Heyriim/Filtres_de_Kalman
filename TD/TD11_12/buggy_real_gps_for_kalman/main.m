@@ -1,0 +1,105 @@
+% Global variables to share with other files.
+global u;
+global bExit;
+global scale, global offsetx, global offsety;
+global L, global alpha, global beta;
+global lat0, global long0, global latitude, global longitude;
+
+% Hardware initializations : IOIO board on buggy is emulated as a SSC-32
+% board on the computer, the smartphone integrated compass is emulated
+% as a Razor AHRS and the GPS is ublox. Check and modify the 
+% corresponding configuration files if needed.
+run hardwarex\hardwarex_init;
+pSSC32 = CreateSSC32();
+[result] = ConnectSSC32(pSSC32, 'hardwarex\SSC320.txt')
+%pSSC32.value
+nbchannels = 32;
+selectedchannels = zeros(nbchannels,1);
+selectedchannels(1) = 1; selectedchannels(2) = 1; selectedchannels(3) = 1;
+pws = zeros(nbchannels,1);
+pws(1) = 1500; pws(2) = 1500; pws(3) = 1500;
+pRazorAHRS = CreateRazorAHRS();
+[result] = ConnectRazorAHRS(pRazorAHRS, 'hardwarex\RazorAHRS0.txt')
+%pRazorAHRS.value
+publox = Createublox();
+[result] = Connectublox(publox, 'hardwarex\ublox0.txt')
+%publox.value
+
+% Create a figure that will use the function keycontrol() when a key is
+% pressed.
+fig = figure('Position',[200 200 400 400],'KeyPressFcn','keycontrol','Name','Buggy real','NumberTitle','off');
+% Force the figure to have input focus (required to capture keys).
+set(fig,'WindowStyle','Modal');
+axis('off');
+
+bExit = 0;
+scale = 5; offsetx = 0; offsety = 0;
+% Default GPS position...
+latitude = 48.418079; longitude = -4.473487;
+%latitude = 48.418514; longitude = -4.472238;
+% Reference coordinate system origin.
+lat0 = latitude; long0 = longitude;
+
+L = 0.5; %Distance (en m) entre essieux avant et arriere.
+alpha = 2.0; %Coefficient (en m/s) a regler en regardant la vitesse du buggy pour une entree u(1) donnee.
+beta = 0.7; %Coefficient (en rad) a regler selon l'angle max des roues de la direction avant.
+
+x_hat = [0;0;0];
+u = [0;0];
+dt = 0.05;
+t = 0;
+
+[result] = StartThreadSSC32(pSSC32);
+[result] = StartThreadRazorAHRS(pRazorAHRS);
+[result] = StartNMEAThreadublox(publox);
+
+while (bExit == 0)
+    % GPS position.
+    [result, nmeadata] = GetNMEASentenceFromThreadublox(publox);
+    latitude = nmeadata.Latitude;
+    longitude = nmeadata.Longitude;
+    % Conversion of GPS latitude and longitude to position in the reference
+    % coordinate system.
+    [x_mes,y_mes] = GPS2RefCoordSystem(lat0, long0, latitude, longitude);
+    
+    % Heading from the compass.
+    [result, razorahrsdata] = GetLatestDataFromThreadRazorAHRS(pRazorAHRS);
+    theta_mes = pi/2-razorahrsdata.Yaw;
+      
+    if ((abs(latitude) > 0.001) && (abs(longitude) > 0.001)) % Check if latitude and longitude are not 0, which means invalid.
+     % TODO : x_mes and y_mes can be used here, change this simple code...  
+     x_hat(1) = x_mes;
+     x_hat(2) = y_mes;
+    end
+
+    % TODO : add Kalman filter...
+    x_hat(3) = theta_mes;
+
+    % Set buggy actuators with the values from the input u.
+    pws(1) = -500*u(2)+1500; pws(2) = 1500; pws(3) = 500*u(1)+1500;
+    [result] = SetAllPWMsFromThreadSSC32(pSSC32, selectedchannels, pws);
+    clf;
+    hold on;
+    axis([-scale+offsetx,scale+offsetx,-scale+offsety,scale+offsety]); axis square;
+    draw(x_hat,u);
+    % Wait a little bit.
+    pause(0.02); % <dt because there are also computations delays...
+    t = t+dt;
+end
+
+[result] = StopNMEAThreadublox(publox);
+[result] = StopThreadRazorAHRS(pRazorAHRS);
+[result] = StopThreadSSC32(pSSC32);
+
+close(fig);
+
+[result] = Disconnectublox(publox)
+Destroyublox(publox);
+clear publox; clear nmeadata; % unloadlibrary might fail if all the variables that use types from the library are not removed...
+[result] = DisconnectRazorAHRS(pRazorAHRS)
+DestroyRazorAHRS(pRazorAHRS);
+clear pRazorAHRS; clear razorahrsdata; % unloadlibrary might fail if all the variables that use types from the library are not removed...
+[result] = DisconnectSSC32(pSSC32)
+DestroySSC32(pSSC32);
+clear pSSC32; % unloadlibrary might fail if all the variables that use types from the library are not removed...
+unloadlibrary('hardwarex');

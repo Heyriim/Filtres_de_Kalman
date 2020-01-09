@@ -1,0 +1,22 @@
+PARTIE 1 : QUESTIONS THEORIQUES
+
+1- L'étape de "prédiction" utilise l'état estimé de l'instant précédent pour produire une
+estimation de l'état courant. C'est l'étape par laquelle on passe pour calculer l'état du 
+système étudié sur un horizon futur.
+	L'étape de "correction" sert au calcul de l'état présent du système.
+	
+2 - En entrée de la fonction de Kalman, les paramètres sont :
+  - X0 : Matrice de l'état présent
+  - G0 : Matrice de covariance de l'état présent
+  - U : Matrice de consigne
+  - Y : Matrice de mesure
+  - Galpha : Matrice de covariance du bruit d'Etat
+  - Gbeta : Matrice de covariance du bruit de mesure
+  - A : Matrice de l'équation d'Etat
+  - C : Matrice de l'équation de mesure
+
+En sortie de la fonction de Kalman :
+  - X1 : Estimation prédite de la matrice d'Etat
+  - G1 : Covariance prédite de la matrice d'Etat
+  - Xup : Estimation corrigée de la matrice d'Etat
+  - Gup : Covariance corrigée de la matrice d'Etat

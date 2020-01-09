@@ -1,0 +1,7 @@
+wait 1
+%linefollowingconfig 5 1.3
+%wait 3
+% Use Mission Planner or OpenCPN to send waypoints (see ReadMe.txt)...
+waypointslist 1 1 2.5 5 36000
+% For accurate station...
+%waypointslist 1 1 2.5 1 36000
